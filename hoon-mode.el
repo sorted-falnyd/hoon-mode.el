@@ -66,6 +66,12 @@
     st)
   "Syntax table for `hoon-mode'.")
 
+(defvar hoon-mode-map
+  (let ((map (make-sparse-keymap)))
+    
+
+    map))
+
 (eval-and-compile
   (defconst hoon-rx-constituents
     `((gap . ,(rx (and space (one-or-more space))))
@@ -394,6 +400,112 @@ form syntax, but that would take parsing.)"
   (shell-command
    (concat hoon-herb-path " " hoon-herb-args " "
 	   (shell-quote-argument (buffer-substring-no-properties (point-min) (point-max)))
+	   " &")))
+
+(define-key hoon-mode-map (kbd "C-c r") 'hoon-eval-region-in-urb)
+(define-key hoon-mode-map (kbd "C-c e") 'hoon-eval-in-urb)
+(define-key hoon-mode-map (kbd "C-c b") 'hoon-eval-buffer-in-urb)
+
+
+(defcustom hoon-docs-dir "~/git/urbit/docs"
+  "Location of hoon docs.")
+(defcustom hoon-source-dir "~/git/urbit/urbit"
+  "Location of hoon docs.")
+
+(defcustom hoon-docs-rune-dir (concat hoon-docs-dir "/"
+                                      "docs/reference/rune/")
+  "Location of hoon rune docs.")
+
+
+(defun hoon-goto-symbol ()
+  (interactive)
+  (cond
+   ((setq-local current-fnsym (hoon--current-fnsym))
+    (hoon-grep-docs (format " %s " current-fnsym) "-F"
+                    hoon-docs-dir))
+   ((setq-local current-aura (hoon--current-aura))
+    (hoon-grep-docs (format "%s" current-aura) "-F"
+                    hoon-docs-dir))
+   ((setq-local current-rune (hoon--current-rune))
+    (hoon-grep-docs (concat "): " current-rune) "-F" hoon-docs-rune-dir))
+   ))
+
+(defun hoon-grep-source (keyword)
+  (interactive)
+  (helm-do-ag ))
+(defun hoon-grep-docs (keyword &optional opts dir use-helm)
+  (interactive (list nil nil nil t))
+  (if use-helm
+      (helm-do-ag hoon-docs-dir)
+    (let* ((default-directory (if dir dir hoon-docs-dir))
+           (command-template "noglob rg --vimgrep --no-heading --smart-case %s \"%s\" .")
+           (command-string (format command-template
+                                   (if opts opts "")
+                                   keyword))
+           (command-count-string
+            (format command-template
+                    "--count-matches --no-filename -F" keyword))
+           (count
+            (apply '+
+                   (mapcar 'string-to-number
+                           (split-string
+                            (shell-command-to-string
+                             command-count-string) "\n" t))))
+           (val
+            (progn
+              (message "Running: %s" command-string)
+              (split-string
+               (shell-command-to-string
+                command-string) "\n" t)))
+           (lst (split-string (car val) ":"))
+           (linenum (string-to-number (cadr lst))))
+      
+      (if (> count 1)
+          (progn (helm-do-ag hoon-docs-dir)
+                 (deactivate-mark))
+        (deactivate-mark)
+        ;; open file
+        (find-file (car lst))
+        ;; goto line if line number exists
+        (when (and linenum (> linenum 0))
+          (goto-char (point-min))
+          (forward-line (1- linenum)))))))
+
+(defun hoon--current-rune ()
+  (let ((start (point))
+         (end (+ (point) 2)))
+    (set-mark start)
+    (goto-char end)
+    (buffer-substring start end)))
+
+(defun hoon--current-aura ()
+  (when (looking-at "@")
+    (let ((start (point))
+          (end (progn  (forward-word) (point))))
+      (set-mark start)
+      (goto-char end)
+      (buffer-substring start end))))
+
+(defun hoon--current-fnsym ()
+  (let ((sym (thing-at-point 'word)))
+    (when sym
+        (progn
+          (set-mark (point))
+          (forward-thing 'word)
+          sym)
+      )
+    ))
+
+(define-key hoon-mode-map (kbd "M-.") 'hoon-goto-symbol)
+
+(defun hoon-eval-in-urb (expression)
+  (interactive
+   (list (read-from-minibuffer "Hoon: "
+                         (when (region-active-p)
+                           (buffer-substring (region-beginning) (region-end))))))
+  (shell-command        
+   (concat hoon-urb-path " " hoon-urb-args " "
+	   (shell-quote-argument expression)
 	   " &")))
 
 (provide 'hoon-mode)
