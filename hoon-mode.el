@@ -349,16 +349,6 @@ form syntax, but that would take parsing.)"
   :prefix "hoon-"
   :group 'tools)
 
-(defcustom hoon-herb-path "/usr/bin/herb"
-  "Path to herb"
-  :group 'hoon
-  :type 'string)
-
-(defcustom hoon-herb-args "-d"
-  "args for herb"
-  :group 'hoon
-  :type 'string)
-
 (defcustom hoon-lsp-enable nil
   "Enable hoon-language-server support. NOTE: requires lsp-mode and hoon-language-server to be installed"
   :group 'hoon
@@ -388,6 +378,16 @@ form syntax, but that would take parsing.)"
       (add-hook 'hoon-mode-hook #'lsp))
   '()))
 
+(defcustom hoon-herb-path "herb"
+  "Path to herb"
+  :group 'hoon
+  :type 'string)
+
+(defcustom hoon-herb-args "-d"
+  "args for herb"
+  :group 'hoon
+  :type 'string)
+
 (defun hoon-eval-region-in-herb ()
   (interactive)
   (shell-command
@@ -402,9 +402,9 @@ form syntax, but that would take parsing.)"
 	   (shell-quote-argument (buffer-substring-no-properties (point-min) (point-max)))
 	   " &")))
 
-(define-key hoon-mode-map (kbd "C-c r") 'hoon-eval-region-in-urb)
-(define-key hoon-mode-map (kbd "C-c e") 'hoon-eval-in-urb)
-(define-key hoon-mode-map (kbd "C-c b") 'hoon-eval-buffer-in-urb)
+(define-key hoon-mode-map (kbd "C-c r") 'hoon-eval-region-in-herb)
+(define-key hoon-mode-map (kbd "C-c e") 'hoon-eval-in-herb)
+(define-key hoon-mode-map (kbd "C-c b") 'hoon-eval-buffer-in-herb)
 
 
 (defcustom hoon-docs-dir "~/git/urbit/docs"
@@ -498,13 +498,13 @@ form syntax, but that would take parsing.)"
 
 (define-key hoon-mode-map (kbd "M-.") 'hoon-goto-symbol)
 
-(defun hoon-eval-in-urb (expression)
+(defun hoon-eval-in-herb (expression)
   (interactive
    (list (read-from-minibuffer "Hoon: "
                          (when (region-active-p)
                            (buffer-substring (region-beginning) (region-end))))))
   (shell-command        
-   (concat hoon-urb-path " " hoon-urb-args " "
+   (concat hoon-herb-path " " hoon-herb-args " "
 	   (shell-quote-argument expression)
 	   " &")))
 
