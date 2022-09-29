@@ -68,9 +68,29 @@
 
 (defvar hoon-mode-map
   (let ((map (make-sparse-keymap)))
-    
-
     map))
+(rx-define gap (and space (one-or-more space)))
+(rx-define identifier (one-or-more (or "." lower digit "-" "+" "<" ">")))
+(rx-define mold (and lower (zero-or-more (or lower digit "-"))))
+(rx-define wing (or "*"
+               "?"
+               "^"
+               (and "@" (zero-or-more word))
+               (and (opt "$-")
+                    "("
+                    (one-or-more
+                     (or (or alphanumeric "(" ")" "*" "?" "@" "-" ":"
+                             "^" "_")
+                         ;; Spaces must be single.
+                         (and space (or alphanumeric "(" ")" "*" "?"
+                                        "@" "-" ":" "^" "_"))))
+                    ")")
+               (and lower (one-or-more (or lower digit "-" ":" "^")))
+               "$-"
+               ))
+(rx-define arm (and (group "+" (or "+" "-" "$" "*")) gap
+                    (group (or "$" identifier))))
+(rx-define arm-comment (and (zero-or-more gap) "::" (zero-or-more gap) "+"))
 
 (eval-and-compile
   (defconst hoon-rx-constituents
@@ -104,9 +124,21 @@
             ((cdr regexps)
              (rx-to-string `(and ,@regexps) t))
             (t
-             (rx-to-string (car regexps) t))))))
+             (rx-to-string (car regexps) t)))))
 
+  (defmacro hoon-rx-imenu (&rest regexps)
+    "Hoon mode specialized rx macro."
+    (let ((rx-constituents (append hoon-rx-constituents rx-constituents)))
+      (cond ((null regexps)
+             (error "No regexp"))
+            ((cdr regexps)
+             `(and ,@regexps))
+            (t
+             (car regexps))))))
 
+(defconst hoon-arm-rx
+  (hoon-rx-imenu (rx (and (group "+" (or "+" "-" "$" "*")) gap
+                          (group (or "$" identifier))))))
 
 (defconst hoon-font-lock-arm-declarations-rx
   (hoon-rx (and (group "+" (or "+" "-" "$" "*")) gap
@@ -282,10 +314,10 @@ regexp. Because of =/, this rule must run after the normal mold rule.")
     (,hoon-font-lock-numbers-rx . font-lock-constant-face)
     (,hoon-font-lock-todos-rx . font-lock-warning-face))
   "Keyword highlighting specification for `hoon-mode'.")
-
-(defvar hoon-imenu-generic-expression ".*")
-
-(defvar hoon-outline-regexp ":::")
+(setq hoon-imenu-generic-expression `(("Arms" ,(rx-to-string 'arm) 2)
+                                     ("Section" "^::    *[+]+\\([^
+]+\\)" 1)))
+(defvar hoon-outline-regexp ,(rx-to-string 'arm-comment))
 
 ;;;###autoload
 (define-derived-mode hoon-mode prog-mode "Hoon"
@@ -300,7 +332,6 @@ regexp. Because of =/, this rule must run after the normal mold rule.")
   (set (make-local-variable 'font-lock-defaults) '(hoon-font-lock-keywords))
   (set (make-local-variable 'indent-tabs-mode) nil) ;; tabs zutiefst verboten
   (set (make-local-variable 'indent-line-function) 'indent-relative)
-  (set (make-local-variable 'fill-paragraph-function) 'hoon-fill-paragraph)
   (set (make-local-variable 'imenu-generic-expression)
        hoon-imenu-generic-expression)
   (set (make-local-variable 'outline-regexp) hoon-outline-regexp)
@@ -407,13 +438,13 @@ form syntax, but that would take parsing.)"
 (define-key hoon-mode-map (kbd "C-c b") 'hoon-eval-buffer-in-herb)
 
 
-(defcustom hoon-docs-dir "~/git/urbit/docs"
+(defvar hoon-docs-dir "/home/jake/vault/projects/urbit/git/urbit.org/content/docs/hoon"
   "Location of hoon docs.")
-(defcustom hoon-source-dir "~/git/urbit/urbit"
+(defvar hoon-source-dir "/home/jake/vault/projects/urbit/git/urbit"
   "Location of hoon docs.")
 
 (defcustom hoon-docs-rune-dir (concat hoon-docs-dir "/"
-                                      "docs/reference/rune/")
+                                      "reference/rune/")
   "Location of hoon rune docs.")
 
 
@@ -421,55 +452,68 @@ form syntax, but that would take parsing.)"
   (interactive)
   (cond
    ((setq-local current-fnsym (hoon--current-fnsym))
-    (hoon-grep-docs (format " %s " current-fnsym) "-F"
-                    hoon-docs-dir))
+    (hoon-grep-docs (format " %s " current-fnsym) '("-F")
+                    hoon-docs-dir nil))
    ((setq-local current-aura (hoon--current-aura))
-    (hoon-grep-docs (format "%s" current-aura) "-F"
-                    hoon-docs-dir))
+    (hoon-grep-docs (format "%s" current-aura) '("-F")
+                    hoon-docs-dir nil))
    ((setq-local current-rune (hoon--current-rune))
-    (hoon-grep-docs (concat "): " current-rune) "-F" hoon-docs-rune-dir))
-   ))
+    (hoon-grep-docs (format "`%s`" current-rune) '("-F") hoon-docs-rune-dir nil))))
 
-(defun hoon-grep-source (keyword)
-  (interactive)
-  (helm-do-ag ))
-(defun hoon-grep-docs (keyword &optional opts dir use-helm)
-  (interactive (list nil nil nil t))
+(defun hoon-grep-source (input)
+  (interactive "P")
+  (+helm-file-search :query input :in hoon-source-dir))
+(defun hoon-grep-docs (input &optional opts dir use-helm)
+  (interactive "P")
   (if use-helm
-      (helm-do-ag hoon-docs-dir)
+      (helm-do-grep-ag hoon-docs-dir)
     (let* ((default-directory (if dir dir hoon-docs-dir))
-           (command-template "noglob rg --vimgrep --no-heading --smart-case %s \"%s\" .")
+           (keyword (substring-no-properties input) )
+           (shell-keyword (shell-quote-argument keyword))
+           (command-template "noglob rg --vimgrep --no-heading --smart-case %s %s .")
            (command-string (format command-template
-                                   (if opts opts "")
-                                   keyword))
+                                   (if opts (-reduce 'string-join opts) "")
+                                   shell-keyword))
            (command-count-string
             (format command-template
-                    "--count-matches --no-filename -F" keyword))
-           (count
-            (apply '+
-                   (mapcar 'string-to-number
-                           (split-string
-                            (shell-command-to-string
-                             command-count-string) "\n" t))))
-           (val
+                    (concat
+                     (if opts (-reduce 'string-join opts) "")
+                     " --count-matches --no-filename ")
+                    shell-keyword))
+           (maybe-count
+            (-some-->
+                (shell-command-to-string
+                 command-count-string)
+              (->> (s-lines it) (-filter (-not 's-blank?)))
+              (-map 'string-to-number it)
+              (-reduce '+ it)))
+           (count (if maybe-count maybe-count 0))
+           (val (unless (= count 0)
+                  (progn
+                    (message "Running: %s" command-string)
+                    (-some-->
+                        (shell-command-to-string
+                         command-string)
+                      (split-string it "\n" t)))))
+           (lst (if val (split-string (car val) ":")))
+           (linenum (if val (string-to-number (cadr lst)))))
+      (progn
+        (if (= count 0) (+helm-file-search :query keyword :in hoon-source-dir :args opts) (deactivate-mark))
+        (if (> count 1)
             (progn
-              (message "Running: %s" command-string)
-              (split-string
-               (shell-command-to-string
-                command-string) "\n" t)))
-           (lst (split-string (car val) ":"))
-           (linenum (string-to-number (cadr lst))))
-      
-      (if (> count 1)
-          (progn (helm-do-ag hoon-docs-dir)
-                 (deactivate-mark))
-        (deactivate-mark)
-        ;; open file
-        (find-file (car lst))
-        ;; goto line if line number exists
-        (when (and linenum (> linenum 0))
-          (goto-char (point-min))
-          (forward-line (1- linenum)))))))
+              (+helm-file-search :query keyword :in hoon-docs-dir :args opts)
+              (deactivate-mark))
+          (unless (length< lst 1)
+            (print lst)
+            (print linenum)
+            (deactivate-mark)
+            ;; open file
+            (find-file (car lst))
+            ;; goto line if line number exists
+            (when (and linenum (> linenum 0))
+              (goto-char (point-min))
+              (forward-line (1- linenum)))))))))
+
 
 (defun hoon--current-rune ()
   (let ((start (point))
@@ -487,23 +531,25 @@ form syntax, but that would take parsing.)"
       (buffer-substring start end))))
 
 (defun hoon--current-fnsym ()
-  (let ((sym (thing-at-point 'word)))
+  (let ((sym (thing-at-point 'symbol)))
     (when sym
         (progn
           (set-mark (point))
-          (forward-thing 'word)
+          (forward-thing 'symbol)
           sym)
       )
     ))
 
 (define-key hoon-mode-map (kbd "M-.") 'hoon-goto-symbol)
+(define-key hoon-mode-map (kbd "M-n") 'outline-next-visible-heading)
+(define-key hoon-mode-map (kbd "M-p") 'outline-previous-visible-heading)
 
 (defun hoon-eval-in-herb (expression)
   (interactive
    (list (read-from-minibuffer "Hoon: "
-                         (when (region-active-p)
-                           (buffer-substring (region-beginning) (region-end))))))
-  (shell-command        
+                               (when (region-active-p)
+                                 (buffer-substring (region-beginning) (region-end))))))
+  (shell-command
    (concat hoon-herb-path " " hoon-herb-args " "
 	   (shell-quote-argument expression)
 	   " &")))
