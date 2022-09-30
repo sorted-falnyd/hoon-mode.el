@@ -35,7 +35,7 @@
 ;;; Commentary:
 
 ;; This is my first Major Mode, so don't expect much. It's heavily based on
-;; SampleMode from the emacs wiki.
+;; SampleMode from the Emacs wiki.
 
 ;;; Code:
 
