@@ -43,6 +43,11 @@
 (require 'dash)
 (require 's)
 
+(defgroup hoon nil
+  "Hoon mode for Emacs."
+  :prefix "hoon-"
+  :group 'tools)
+
 (defvar hoon-mode-syntax-table
   (let ((st (make-syntax-table)))
     ;; Basic quoting support
@@ -71,6 +76,9 @@
 
 (defvar hoon-mode-map
   (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-e r") 'hoon-eval-region-in-herb)
+    (define-key map (kbd "C-c C-e e") 'hoon-eval-in-herb)
+    (define-key map (kbd "C-c C-e b") 'hoon-eval-buffer-in-herb)
     map))
 
 (rx-define hoon-rx-gap
@@ -394,145 +402,6 @@ JUSTIFY is used in `fill-paragraph.'"
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.hoon$" . hoon-mode))
 
-(defgroup hoon nil
-  "hoon mode for emacs"
-  :prefix "hoon-"
-  :group 'tools)
-
-(defcustom hoon-lsp-enable nil
-  "Enable hoon-language-server support. NOTE: requires lsp-mode and hoon-language-server to be installed"
-  :group 'hoon
-  :type 'boolean)
-
-(defcustom hoon-lsp-port "8080"
-  "Port for language server"
-  :group 'hoon
-  :type 'string)
-
-(defcustom hoon-lsp-delay "0"
-  "Delay for language server"
-  :group 'hoon
-  :type 'string)
-
-(eval-after-load "lsp-mode"
-  (if hoon-lsp-enable
-    '(progn
-      (add-to-list 'lsp-language-id-configuration '(hoon-mode . "hoon"))
-      (lsp-register-client
-        (make-lsp-client :new-connection
-                        (lsp-stdio-connection `("hoon-language-server"
-                                                ,(concat "-p " hoon-lsp-port)
-                                                ,(concat "-d " hoon-lsp-delay)))
-                         :major-modes '(hoon-mode)
-                         :server-id 'hoon-ls))
-      (add-hook 'hoon-mode-hook #'lsp))
-  '()))
-
-(defcustom hoon-herb-path "herb"
-  "Path to herb"
-  :group 'hoon
-  :type 'string)
-
-(defcustom hoon-herb-args "-d"
-  "args for herb"
-  :group 'hoon
-  :type 'string)
-
-(defun hoon-eval-region-in-herb ()
-  (interactive)
-  (shell-command
-   (concat hoon-herb-path " " hoon-herb-args " "
-	   (shell-quote-argument (buffer-substring (region-beginning) (region-end)))
-	   " &")))
-
-(defun hoon-eval-buffer-in-herb ()
-  (interactive)
-  (shell-command
-   (concat hoon-herb-path " " hoon-herb-args " "
-	   (shell-quote-argument (buffer-substring-no-properties (point-min) (point-max)))
-	   " &")))
-
-(define-key hoon-mode-map (kbd "C-c r") 'hoon-eval-region-in-herb)
-(define-key hoon-mode-map (kbd "C-c e") 'hoon-eval-in-herb)
-(define-key hoon-mode-map (kbd "C-c b") 'hoon-eval-buffer-in-herb)
-
-
-(defvar hoon-docs-dir "/home/jake/vault/projects/urbit/git/urbit.org/content/docs/hoon"
-  "Location of hoon docs.")
-(defvar hoon-source-dir "/home/jake/vault/projects/urbit/git/urbit"
-  "Location of hoon docs.")
-
-(defcustom hoon-docs-rune-dir (concat hoon-docs-dir "/"
-                                      "reference/rune/")
-  "Location of hoon rune docs.")
-
-
-(defun hoon-goto-symbol ()
-  (interactive)
-  (cond
-   ((setq-local current-fnsym (hoon--current-fnsym))
-    (hoon-grep-docs (format " %s " current-fnsym) '("-F")
-                    hoon-docs-dir nil))
-   ((setq-local current-aura (hoon--current-aura))
-    (hoon-grep-docs (format "%s" current-aura) '("-F")
-                    hoon-docs-dir nil))
-   ((setq-local current-rune (hoon--current-rune))
-    (hoon-grep-docs (format "`%s`" current-rune) '("-F") hoon-docs-rune-dir nil))))
-
-(defun hoon-grep-source (input)
-  (interactive "P")
-  (+helm-file-search :query input :in hoon-source-dir))
-(defun hoon-grep-docs (input &optional opts dir use-helm)
-  (interactive "P")
-  (if use-helm
-      (helm-do-grep-ag hoon-docs-dir)
-    (let* ((default-directory (if dir dir hoon-docs-dir))
-           (keyword (substring-no-properties input) )
-           (shell-keyword (shell-quote-argument keyword))
-           (command-template "noglob rg --vimgrep --no-heading --smart-case %s %s .")
-           (command-string (format command-template
-                                   (if opts (-reduce 'string-join opts) "")
-                                   shell-keyword))
-           (command-count-string
-            (format command-template
-                    (concat
-                     (if opts (-reduce 'string-join opts) "")
-                     " --count-matches --no-filename ")
-                    shell-keyword))
-           (maybe-count
-            (-some-->
-                (shell-command-to-string
-                 command-count-string)
-              (->> (s-lines it) (-filter (-not 's-blank?)))
-              (-map 'string-to-number it)
-              (-reduce '+ it)))
-           (count (if maybe-count maybe-count 0))
-           (val (unless (= count 0)
-                  (progn
-                    (message "Running: %s" command-string)
-                    (-some-->
-                        (shell-command-to-string
-                         command-string)
-                      (split-string it "\n" t)))))
-           (lst (if val (split-string (car val) ":")))
-           (linenum (if val (string-to-number (cadr lst)))))
-      (progn
-        (if (= count 0) (+helm-file-search :query keyword :in hoon-source-dir :args opts) (deactivate-mark))
-        (if (> count 1)
-            (progn
-              (+helm-file-search :query keyword :in hoon-docs-dir :args opts)
-              (deactivate-mark))
-          (unless (length< lst 1)
-            (print lst)
-            (print linenum)
-            (deactivate-mark)
-            ;; open file
-            (find-file (car lst))
-            ;; goto line if line number exists
-            (when (and linenum (> linenum 0))
-              (goto-char (point-min))
-              (forward-line (1- linenum)))))))))
-
 
 (defun hoon--current-rune ()
   "Parse the current Hoon rune at point."
@@ -563,16 +432,6 @@ JUSTIFY is used in `fill-paragraph.'"
 (define-key hoon-mode-map (kbd "M-.") 'hoon-goto-symbol)
 (define-key hoon-mode-map (kbd "M-n") 'outline-next-visible-heading)
 (define-key hoon-mode-map (kbd "M-p") 'outline-previous-visible-heading)
-
-(defun hoon-eval-in-herb (expression)
-  (interactive
-   (list (read-from-minibuffer "Hoon: "
-                               (when (region-active-p)
-                                 (buffer-substring (region-beginning) (region-end))))))
-  (shell-command
-   (concat hoon-herb-path " " hoon-herb-args " "
-	   (shell-quote-argument expression)
-	   " &")))
 
 (provide 'hoon-mode)
 ;;; hoon-mode.el ends here
