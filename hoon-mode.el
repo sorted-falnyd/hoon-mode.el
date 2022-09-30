@@ -40,6 +40,8 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'dash)
+(require 's)
 
 (defvar hoon-mode-syntax-table
   (let ((st (make-syntax-table)))
