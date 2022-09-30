@@ -72,34 +72,44 @@
 (defvar hoon-mode-map
   (let ((map (make-sparse-keymap)))
     map))
-(rx-define gap (and space (one-or-more space)))
-(rx-define identifier (one-or-more (or "." lower digit "-" "+" "<" ">")))
-(rx-define mold (and lower (zero-or-more (or lower digit "-"))))
-(rx-define wing (or "*"
-               "?"
-               "^"
-               (and "@" (zero-or-more word))
-               (and (opt "$-")
-                    "("
-                    (one-or-more
-                     (or (or alphanumeric "(" ")" "*" "?" "@" "-" ":"
-                             "^" "_")
-                         ;; Spaces must be single.
-                         (and space (or alphanumeric "(" ")" "*" "?"
-                                        "@" "-" ":" "^" "_"))))
-                    ")")
-               (and lower (one-or-more (or lower digit "-" ":" "^")))
-               "$-"
-               ))
-(rx-define arm (and (group "+" (or "+" "-" "$" "*")) gap
-                    (group (or "$" identifier))))
-(rx-define arm-comment (and (zero-or-more gap) "::" (zero-or-more gap) "+"))
+
+(rx-define hoon-rx-gap
+  (and space (one-or-more space)))
+
+(rx-define hoon-rx-identifier
+  (one-or-more (or "." lower digit "-" "+" "<" ">")))
+
+(rx-define hoon-rx-mold
+  (and lower (zero-or-more (or lower digit "-"))))
+(rx-define hoon-rx-wing
+  (or "*"
+      "?"
+      "^"
+      (and "@" (zero-or-more word))
+      (and (opt "$-")
+           "("
+           (one-or-more
+            (or (or alphanumeric "(" ")" "*" "?" "@" "-" ":"
+                    "^" "_")
+                ;; Spaces must be single.
+                (and space (or alphanumeric "(" ")" "*" "?"
+                               "@" "-" ":" "^" "_"))))
+           ")")
+      (and lower (one-or-more (or lower digit "-" ":" "^")))
+      "$-"))
+
+(rx-define hoon-rx-arm
+  (and (group "+" (or "+" "-" "$" "*")) hoon-rx-gap
+       (group (or "$" hoon-rx-identifier))))
+
+(rx-define hoon-rx-arm-comment
+  (and (zero-or-more hoon-rx-gap) "::" (zero-or-more hoon-rx-gap) "+"))
 
 (eval-and-compile
   (defconst hoon-rx-constituents
-    `((gap . ,(rx (and space (one-or-more space))))
-      (identifier . ,(rx (and lower (zero-or-more (or lower digit "-")))))
-      (mold . ,(rx (or "*"
+    `((hoon-rx-gap . ,(rx (and space (one-or-more space))))
+      (hoon-rx-identifier . ,(rx (and lower (zero-or-more (or lower digit "-")))))
+      (hoon-rx-mold . ,(rx (or "*"
                        "?"
                        "^"
                        (and "@" (zero-or-more word))
@@ -113,10 +123,8 @@
                                                 "@" "-" ":" "^" "_"))))
                             ")")
                        (and lower (one-or-more (or lower digit "-" ":" "^")))
-                       "$-"
-                       )))
-      (wing . ,(rx (one-or-more (or "." lower digit "-" "+" "<" ">"))))
-      )
+                       "$-")))
+      (hoon-rx-wing . ,(rx (one-or-more (or "." lower digit "-" "+" "<" ">")))))
     "Common patterns used in font locking hoon code.")
 
   (defmacro hoon-rx (&rest regexps)
@@ -140,75 +148,78 @@
              (car regexps))))))
 
 (defconst hoon-arm-rx
-  (hoon-rx-imenu (rx (and (group "+" (or "+" "-" "$" "*")) gap
-                          (group (or "$" identifier))))))
+  (hoon-rx-imenu (rx (and (group "+" (or "+" "-" "$" "*")) hoon-rx-gap
+                          (group (or "$" hoon-rx-identifier))))))
 
 (defconst hoon-font-lock-arm-declarations-rx
-  (hoon-rx (and (group "+" (or "+" "-" "$" "*")) gap
-                (group (or "$" identifier))))
-  "Regexp of declarations")
+  (hoon-rx (and (group "+" (or "+" "-" "$" "*")) hoon-rx-gap
+                (group (or "$" hoon-rx-identifier))))
+  "Regexp of declarations.")
 
 
 (defconst hoon-font-lock-face-mold-old-rx
   (hoon-rx
    (and (group word (zero-or-more (or word "-")))
         "/"
-        (group mold)))
+        (group hoon-rx-mold)))
   "Regexp to old style name/mold in declarations.")
 
 (defconst hoon-font-lock-tisfas-rx
-  (hoon-rx (and "=/" gap (group wing) (opt "=") (opt (group mold))))
+  (hoon-rx (and "=/" hoon-rx-gap (group hoon-rx-wing) (opt "=") (opt (group hoon-rx-mold))))
   "Regexp to match =/.")
 
 (defconst hoon-font-lock-bar-mold-rx
   (hoon-rx (group (or "|=" "=|")))
-  "Regexp to match |= or =|. Used for syntax highlighting the molds on
-lines like |=  [a=@t b=wire].")
+  "Regexp to match |= or =|.
+Used for syntax highlighting the molds on lines like |=  [a=@t b=wire].")
 
 (defconst hoon-font-lock-face-mold-rx
   (hoon-rx
    (and (group word (zero-or-more (or word "-")))
         "="
-        (group mold)))
-  "Regexp to match name=mold in declarations")
+        (group hoon-rx-mold)))
+  "Regexp to match name=mold in declarations.")
 
 (defconst hoon-font-lock-kethep-rx
   (hoon-rx (and "^-  "
                 (opt "{")
-                (group (or mold) (zero-or-more space (or mold)))
+                (group (or hoon-rx-mold) (zero-or-more space (or hoon-rx-mold)))
                 (opt "}")))
-  "Regexp to match ^- in long form. Note the `or' around
-  `mold'. We need to wrap the imported stuff in that context.")
+  "Regexp to match ^- in long form.
+NOTE: the `or' around `hoon-rx-mold'.
+We need to wrap the imported stuff in that context.")
 
 (defconst hoon-font-lock-kethep-irregular-rx
-  (hoon-rx (and "`" (group mold) "`")))
+  (hoon-rx (and "`" (group hoon-rx-mold) "`")))
 
 (defconst hoon-font-lock-kettis-rx
-  (hoon-rx (and "^=" gap (group identifier))))
+  (hoon-rx (and "^=" hoon-rx-gap (group hoon-rx-identifier))))
 
 (defconst hoon-font-lock-kettis-irregular-rx
-  (hoon-rx (and (group identifier) "="))
+  (hoon-rx (and (group hoon-rx-identifier) "="))
   "Regexp of faces.")
 
 (defconst hoon-font-lock-mold-shorthand-rx
   (hoon-rx (and (or "[" "(" line-start space)
-                (group (and (and "=" identifier)
-                            (zero-or-more (or "." ":" identifier))))))
-  "Regexp to match =same-name-as-mold in declarations")
+                (group (and (and "=" hoon-rx-identifier)
+                            (zero-or-more (or "." ":" hoon-rx-identifier))))))
+  "Regexp to match =same-name-as-mold in declarations.")
 
 (defconst hoon-font-lock-tis-wing-rx
-  (hoon-rx (and (or "=." "=?" "=*") gap (group wing)))
-  "Several runes start with <rune> <gap> term/wing. Combine these into one
-regexp. Because of =/, this rule must run after the normal mold rule.")
+  (hoon-rx (and (or "=." "=?" "=*") hoon-rx-gap (group hoon-rx-wing)))
+  "Regexp matching runes starting with <rune> <hoon-rx-gap> term/wing.
+Combine these into one regexp.
+Because of =/, this rule must run after the normal mold rule.")
 
 (defconst hoon-font-lock-tisket-rx
-  (hoon-rx (and "=^" gap (group-n 1 wing) (opt "=") (opt (group-n 3 mold)) gap (group-n 2 wing))))
+  (hoon-rx (and "=^" hoon-rx-gap (group-n 1 hoon-rx-wing) (opt "=") (opt (group-n 3 hoon-rx-mold)) hoon-rx-gap (group-n 2 hoon-rx-wing))))
 
 (defconst hoon-font-lock-symbols-rx
   (rx (and "%" (or (and word (zero-or-more (any word "-")))
                    "|" "&" "$" ".n" ".y")))
-  "Regexp of symbols. This must be run before runes, or %.n and %.y will
- partially be highlighted as runes.")
+  "Regexp of symbols.
+This must be run before runes, or %.n and %.y will partially be
+highlighted as runes.")
 
 (defconst hoon-font-lock-runes-rx
   ;; This could be `regexp-opt' and added statically for more speed
@@ -320,7 +331,8 @@ regexp. Because of =/, this rule must run after the normal mold rule.")
 (setq hoon-imenu-generic-expression `(("Arms" ,(rx-to-string 'arm) 2)
                                      ("Section" "^::    *[+]+\\([^
 ]+\\)" 1)))
-(defvar hoon-outline-regexp ,(rx-to-string 'arm-comment))
+
+(defvar hoon-outline-regexp ,(rx-to-string 'hoon-rx-arm-comment))
 
 ;;;###autoload
 (define-derived-mode hoon-mode prog-mode "Hoon"
