@@ -533,13 +533,15 @@ JUSTIFY is used in `fill-paragraph.'"
 
 
 (defun hoon--current-rune ()
+  "Parse the current Hoon rune at point."
   (let ((start (point))
-         (end (+ (point) 2)))
+        (end (+ (point) 2)))
     (set-mark start)
     (goto-char end)
     (buffer-substring start end)))
 
 (defun hoon--current-aura ()
+  "Parse the current Hoon aura at point."
   (when (looking-at "@")
     (let ((start (point))
           (end (progn  (forward-word) (point))))
@@ -548,14 +550,13 @@ JUSTIFY is used in `fill-paragraph.'"
       (buffer-substring start end))))
 
 (defun hoon--current-fnsym ()
+  "Parse the current Hoon function symbol at point."
   (let ((sym (thing-at-point 'symbol)))
     (when sym
-        (progn
-          (set-mark (point))
-          (forward-thing 'symbol)
-          sym)
-      )
-    ))
+      (progn
+        (set-mark (point))
+        (forward-thing 'symbol)
+        sym))))
 
 (define-key hoon-mode-map (kbd "M-.") 'hoon-goto-symbol)
 (define-key hoon-mode-map (kbd "M-n") 'outline-next-visible-heading)
