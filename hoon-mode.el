@@ -336,7 +336,9 @@ highlighted as runes.")
 
 ;;;###autoload
 (define-derived-mode hoon-mode prog-mode "Hoon"
-  "A major mode for editing Hoon files."
+  "A major mode for editing Hoon files.
+
+\\{hoon-mode-map}"
   :syntax-table hoon-mode-syntax-table
   (set (make-local-variable 'comment-start) "::")
   (set (make-local-variable 'comment-padding) 2)
