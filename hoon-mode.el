@@ -238,13 +238,12 @@ highlighted as runes.")
        "+|"
        ;; Not technically runes, but we highlight them like that.
        "=="
-       "--"
-       ))
+       "--"))
   "Regexp of runes.")
 
 (defconst hoon-font-lock-preprocessor-rx
   (rx (or "/?" "/-" "/+" "//" "/="))
-  "Ford preprocessor 'runes'.")
+  "Ford preprocessor runes.")
 
 (defconst hoon-font-lock-zapzap-rx
   (rx "!!")
@@ -267,9 +266,8 @@ highlighted as runes.")
             (repeat 1 4 hex)
             (zero-or-more "." (repeat 4 hex)))
        (and (repeat 1 3 digit)
-            (zero-or-more "." (repeat 3 digit)))
-       ))
-  "Regexp of numbers")
+            (zero-or-more "." (repeat 3 digit)))))
+  "Regexp of numbers.")
 
 (defconst hoon-font-lock-todos-rx
   (rx (or "XX" "XXX" "TODO" "FIXME"))
@@ -303,7 +301,7 @@ highlighted as runes.")
      (1 font-lock-variable-name-face))
     (,hoon-font-lock-tisfas-rx           ;; =/  wing=@t
      (1 font-lock-variable-name-face
-     (2 font-lock-type-face nil t)))
+        (2 font-lock-type-face nil t)))
     (,hoon-font-lock-tis-wing-rx         ;; (=. =?)  wing
      (1 font-lock-variable-name-face))
     (,hoon-font-lock-tisket-rx           ;; =^  wing=@t  wing
@@ -328,8 +326,10 @@ highlighted as runes.")
     (,hoon-font-lock-numbers-rx . font-lock-constant-face)
     (,hoon-font-lock-todos-rx . font-lock-warning-face))
   "Keyword highlighting specification for `hoon-mode'.")
-(setq hoon-imenu-generic-expression `(("Arms" ,(rx-to-string 'arm) 2)
-                                     ("Section" "^::    *[+]+\\([^
+
+(defvar hoon-imenu-generic-expression
+      `(("Arms" ,(rx-to-string 'hoon-rx-arm) 2)
+        ("Section" "^::    *[+]+\\([^
 ]+\\)" 1)))
 
 (defvar hoon-outline-regexp ,(rx-to-string 'hoon-rx-arm-comment))
