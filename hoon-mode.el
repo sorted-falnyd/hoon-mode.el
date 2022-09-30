@@ -363,8 +363,10 @@ highlighted as runes.")
   (set (make-local-variable 'uniquify-strip-common-suffix) nil))
 
 (defun hoon-fill-paragraph (&optional justify)
-  "Only fill inside comments. (It might be neat to auto-convert short to long
-form syntax, but that would take parsing.)"
+  "Only fill inside comments.
+It might be neat to auto-convert short to long form syntax, but that
+would take parsing.
+JUSTIFY is used in `fill-paragraph.'"
   (interactive "P")
   (or (fill-comment-paragraph justify)
       ;; Never return nil; `fill-paragraph' will perform its default behavior
