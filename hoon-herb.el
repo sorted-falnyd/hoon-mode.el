@@ -1,3 +1,5 @@
+(require 'hoon-utils)
+
 (defgroup hoon-herb nil
   "Hoon Herb."
   :prefix "hoon-herb-"
@@ -20,11 +22,7 @@
 
 (defun hoon-herb-path ()
   "Find Hoon herb executable."
-  (if hoon-herb-executable-path
-      hoon-herb-executable-path
-    (progn
-      (setq hoon-herb-executable-path (executable-find hoon-herb-executable))
-      hoon-herb-executable-path)))
+  (hoon-get-or-set hoon-herb-executable-path (executable-find hoon-herb-executable)))
 
 (defun hoon-herb-eval-region ()
   "Eval current region in herb."
