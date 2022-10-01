@@ -1,38 +1,70 @@
+;;; hoon-find.el --- Functionality for finding things -*- lexical-binding: t -*-
+
+;;; Commentary:
+
+;;; Code:
+
+(require 'dash)
+(require 's)
+(require 'hoon-mode)
+
 (defgroup hoon-find nil
   "Hoon find src/doc utilities."
   :prefix "hoon-find-"
   :group 'hoon)
 
 (defcustom hoon-find-docs-dir "content/docs/hoon"
-  ""
+  "Directory path for Hoon docs in urbit.org project."
   :type 'string
   :group 'hoon-find)
 
 (defcustom hoon-find-source-dir "."
-  ""
+  "Directory path for Hoon source in Urbit project."
   :type 'string
   :group 'hoon-find)
 
 (defcustom hoon-find-forge-path "https://github.com/urbit"
-  "" :type 'string :group 'hoon-find)
-(defcustom hoon-find-forge-docs-project "urbit.org" "" :type 'string :group 'hoon-find)
-(defcustom hoon-find-forge-source-project "urbit" "" :type 'string :group 'hoon-find)
+  "Forge in which Urbit sources are hosted."
+  :type 'string
+  :group 'hoon-find)
 
-(defcustom hoon-find-cache-directory ".emacs.d/.cache/hoon-find" "" :type 'string :group 'hoon-find)
+(defcustom hoon-find-forge-docs-project "urbit.org"
+  "Forge project name which contains Urbit docs."
+  :type 'string
+  :group 'hoon-find)
+
+(defcustom hoon-find-forge-source-project "urbit"
+  "Forge project name which contains Urbit source."
+  :type 'string
+  :group 'hoon-find)
+
+(defcustom hoon-find-cache-directory ".emacs.d/.cache/hoon-find"
+  "Cache path for code and docs projects."
+  :type 'string
+  :group 'hoon-find)
+
+(defconst hoon-find--user-home-directory
+  (expand-file-name "~/")
+  "User home directory (default ~/).")
 
 (defun hoon-find--cache-directory ()
-  (concat user-home-directory hoon-find-cache-directory))
+  ""
+  (concat hoon-find--user-home-directory hoon-find-cache-directory))
 
 (defun hoon-find--docs-directory ()
+  ""
   (concat (hoon-find--cache-directory) "/" hoon-find-forge-docs-project))
 
 (defun hoon-find--source-directory ()
+  ""
   (concat (hoon-find--cache-directory) "/" hoon-find-forge-source-project))
 
 (defun hoon-find-ensure-cache-dir ()
+  ""
   (make-directory (hoon-find--cache-directory) :parents))
 
 (defun hoon-find-ensure-docs-project ()
+  ""
   (shell-command
    (concat "git clone --depth 1" hoon-find-forge-path "/" hoon-find-forge-docs-project " " (hoon-find--docs-directory))
    "*Hoon Find*"

@@ -40,8 +40,6 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'dash)
-(require 's)
 
 (defgroup hoon nil
   "Hoon mode for Emacs."
